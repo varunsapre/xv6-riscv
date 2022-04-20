@@ -95,3 +95,36 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+uint64 
+sys_info(void)
+{
+  printf("inside sys_info\n");
+  int option;
+  if(argint(0, &option) < 0)
+  {
+    printf("ERROR: argument passed could not be converted to int\n");
+    return -1;
+  }
+
+  printf("Option chosen: %d\n", option);
+
+  if (option == 1) {
+    return count_procs();
+  }
+  else if (option == 2) {
+    return count_syscalls();
+  }
+  else if (option == 3) {
+    return num_memory_pages();
+  }
+  else
+  {
+    printf("ERROR: unrecognized option\n");
+    return -1;
+  }
+
+  // print_hello(option);
+  return 0;
+}

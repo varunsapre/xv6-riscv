@@ -654,3 +654,35 @@ procdump(void)
     printf("\n");
   }
 }
+
+void print_hello(int n)
+{
+  printf("inside print_hello\n");
+  printf("Hello from the kernel space %d \n", n);
+}
+
+int count_procs()
+{
+ 
+  printf("inside count_procs\n");
+  struct proc *p;
+  int count = 0;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    count ++;
+  }
+  printf("Count of Processes: %d\n", count);
+  return count;
+}
+
+int count_syscalls()
+{
+  printf("inside count_syscalls\n");
+  return 0;
+}
+
+int num_memory_pages()
+{
+  printf("inside num_memory_pages\n");
+  return 0;
+}
