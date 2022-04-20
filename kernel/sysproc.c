@@ -100,15 +100,12 @@ sys_uptime(void)
 uint64 
 sys_info(void)
 {
-  printf("inside sys_info\n");
   int option;
   if(argint(0, &option) < 0)
   {
     printf("ERROR: argument passed could not be converted to int\n");
     return -1;
   }
-
-  printf("Option chosen: %d\n", option);
 
   if (option == 1) {
     return count_procs();

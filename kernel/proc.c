@@ -119,6 +119,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->syscalls_made=0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -663,26 +664,50 @@ void print_hello(int n)
 
 int count_procs()
 {
- 
-  printf("inside count_procs\n");
   struct proc *p;
-  int count = 0;
+  static char *states[] = {
+    [UNUSED]    "unused",
+    [USED]      "used ",
+    [SLEEPING]  "sleep ",
+    [RUNNABLE]  "runnable",
+    [RUNNING]   "running",
+    [ZOMBIE]    "zombie"
+  };
 
+  int state_count[6] = {0,0,0,0,0,0};
+
+  int total_count = 0;
   for(p = proc; p < &proc[NPROC]; p++){
-    count ++;
+    acquire(&p->lock);
+    state_count[p->state] ++;
+    total_count ++;
+    release(&p->lock);
   }
-  printf("Count of Processes: %d\n", count);
-  return count;
+  
+  for (int i=0; i<6; i++){
+    printf("  %s = %d\n", states[i], state_count[i]);
+  }
+
+  printf("Total count of procs: %d\n", total_count);
+  return total_count;
 }
 
 int count_syscalls()
 {
-  printf("inside count_syscalls\n");
-  return 0;
+  struct proc *p = myproc();
+  printf("current proc pid: %d\n", p->pid);
+  printf("total syscalls made by proc#%d until now: %d\n", p->pid, p->syscalls_made);
+  return p->syscalls_made;
 }
 
 int num_memory_pages()
-{
-  printf("inside num_memory_pages\n");
-  return 0;
+{ 
+  struct proc *p = myproc();
+  uint sz = p->sz;
+  
+  // find the PageTable size rounded up using PGROUNDUP and then divide that with the PAGESIZE
+  int pages = (PGROUNDUP(sz))/PGSIZE;
+  
+  printf("Number of pages being used: %d\n", pages);
+  return pages;
 }

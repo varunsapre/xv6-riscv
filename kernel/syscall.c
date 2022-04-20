@@ -7,8 +7,6 @@
 #include "syscall.h"
 #include "defs.h"
 
-int numSyscalls_count = 0;
-
 // Fetch the uint64 at addr from the current process.
 int
 fetchaddr(uint64 addr, uint64 *ip)
@@ -137,15 +135,21 @@ void
 syscall(void)
 {
   int num;
-  struct proc *p = myproc();
-
+  struct proc *p = myproc(); 
   num = p->trapframe->a7;
+  // num hold the system call number as defined in syscall.h
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    // disregad SYS_info calls in counting
+    if (num != SYS_info)
+    {
+      p->syscalls_made++;
+    }
+    
     p->trapframe->a0 = syscalls[num]();
-    numSyscalls_count ++;
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);
     p->trapframe->a0 = -1;
   }
+  printf("PID: %d | syscall#%d | pid_syscalls: %d\n", p->pid, num, p->syscalls_made); //, numSyscalls_count);
 }
