@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 #include "rand.h"
+#include "tickets.h"
 
 struct cpu cpus[NCPU];
 
@@ -18,7 +19,6 @@ struct spinlock pid_lock;
 
 extern void forkret(void);
 static void freeproc(struct proc *p);
-
 extern char trampoline[]; // trampoline.S
 
 // helps ensure that wakeups of wait()ing
@@ -450,21 +450,76 @@ scheduler(void)
     intr_on();
 
     #ifdef LOTTERY
+    struct proc *p;
 
-    #endif
+    // Create array to keep track of tickets assigned to each process
+    // Initialise the array to -1
+    // Using random number generator function to hit a ticketId, if there is a hit, then that process will be scheduled
+    int ticketId [5000] = {-1};
 
-    #ifdef STRIDE
-
-    #endif
+    // Track where the next process should go
+    int processCountLevel = 0;
     
-    
-    #ifdef DEFAULT
-    for(p = proc; p < &proc[NPROC]; p++) {
+    // Initialise the variables
+    int lottery = 0;
+    int lotteryPid = -1;
+    int totalTickets = 0;
+
+    // Execution start ticks
+    uint start = 0;
+
+    cprintf("Lottery scheduler in progress...\n");
+
+    for(;;){
+      // Enable interrupts on this processor.
+      sti();
+
       acquire(&p->lock);
-      if(p->state == RUNNABLE) {
+      for(p = proc; p < &proc[NPROC]; p++) {
+        if(p->state == RUNNABLE) {
+          totalTickets += p->numtickets;
+          for(int count = processCountLevel; count < totalTickets; count++)
+          {
+            ticketId[count] = p->pid;
+            processCountLevel++;
+          }
+        }
+      }
+
+      release(&p->lock);
+
+      // Get a valid lottery ticket from the pool and check if it is assigned to any process
+      while(1)
+      {
+        lottery = randProc(totalTickets);
+        if(ticketId[lottery] != -1)
+        {
+          lotteryPid = ticketId[lottery];
+          break;
+        }
+      }
+      
+
+      // Loop over process table looking for process to run.
+      acquire(&p->lock);
+      for(p = proc; p < &proc[NPROC]; p++) {
+        if(p->state != RUNNABLE || p->pid != lotteryPid)
+          continue;
+
+        // Decrement tickets held by the process
+        p->numtickets -= 1;
+        p->totalticks += 1;
+        // refresh the tickets
+        if(p->numtickets == 0) {
+          // Set process with default tickets if it runs out of tickets
+          p->numtickets = DEFAULT_TICKETS;
+          p->sumtickets += DEFAULT_TICKETS;
+        }
+        printf("Process: %d, %s is allowed to run!\n", p->pid, p->name);
         // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
+        // to release ptable.lock and then reacquire it
         // before jumping back to us.
+        start = ticks;
         p->state = RUNNING;
         c->proc = p;
         swtch(&c->context, &p->context);
@@ -472,9 +527,40 @@ scheduler(void)
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
+        p->totalticks += ticks - start;
       }
       release(&p->lock);
+
+      // Reset values 
+      totalTickets = 0;
+      start = 0;
+      processCountLevel = 0;
     }
+
+      #endif
+
+      #ifdef STRIDE
+
+      #endif
+      
+      
+      #ifdef DEFAULT
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE) {
+          // Switch to chosen process.  It is the process's job
+          // to release its lock and then reacquire it
+          // before jumping back to us.
+          p->state = RUNNING;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+        }
+        release(&p->lock);
+      }
     #endif
   }
 }
@@ -483,68 +569,7 @@ scheduler(void)
 void
 lottery(void)
 {
-  struct proc *p;
-
   
-  int winner = procrand(4);
-  int totalTickets = 0;
-  int atticket = 0;
-
-  cprintf("Using lottery scheduling...\n");
-
-  for(;;){
-    // Enable interrupts on this processor.
-    sti();
-
-    acquire(&p->lock);
-    for(p = proc; p < &proc[NPROC]; p++) {
-      if(p->state == RUNNABLE) {
-        totalTickets += p->numtickets;
-      }
-    }
-
-    release(&p->lock);
-
-    // grab the winning ticket in the range
-    winner = randProc(totalTickets);
-
-    // Loop over process table looking for process to run.
-    acquire(&p->lock);
-    for(p = proc; p < &proc[NPROC]; p++) {
-      if(p->state != RUNNABLE)
-        continue;
-
-      // lab1-2
-      // check for our winner!
-      if(winner <= atticket || atticket == totalTickets) {
-        // decrement our tickets
-        p->numtickets -= 1;
-        // refresh the tickets
-        if(p->numtickets == 0) {
-          p->numtickets = SEED_TICKETS;
-        }
-        cprintf("Process: %d, %s is allowed to run!\n", p->pid, p->name);
-        // Switch to chosen process.  It is the process's job
-        // to release ptable.lock and then reacquire it
-        // before jumping back to us.
-        proc = p;
-        switchuvm(p);
-        p->state = RUNNING;
-        swtch(&cpu->scheduler, proc->context);
-        switchkvm();
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        proc = 0;
-      }
-    }
-    release(&ptable.lock);
-
-    // lab1-2
-    // reset pool tickets so that we can rebuild the list again
-    totalTickets = 0;
-    atticket = 0;
-  }
 }
 
 // Switch to scheduler.  Must hold only p->lock

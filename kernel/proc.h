@@ -110,5 +110,7 @@ struct proc {
   
   // lottery and stride related state data
   int numtickets;
+  int totalticks;
   int usedtickets;
+  int sumtickets;             // Total tickets assigned in lifetime
 };
