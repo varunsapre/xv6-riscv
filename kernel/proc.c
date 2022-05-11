@@ -143,6 +143,7 @@ found:
   p->context.sp = p->kstack + PGSIZE;
 
   p->numtickets = 0;
+  p->usedtickets = 0;
   return p;
 }
 
@@ -448,6 +449,16 @@ scheduler(void)
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
+    #ifdef LOTTERY
+
+    #endif
+
+    #ifdef STRIDE
+
+    #endif
+    
+    
+    #ifdef DEFAULT
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
@@ -464,6 +475,7 @@ scheduler(void)
       }
       release(&p->lock);
     }
+    #endif
   }
 }
 
@@ -473,8 +485,9 @@ lottery(void)
 {
   struct proc *p;
 
+  
   int winner = procrand(4);
-  int pooltickets = 0;
+  int totalTickets = 0;
   int atticket = 0;
 
   cprintf("Using lottery scheduling...\n");
@@ -483,29 +496,29 @@ lottery(void)
     // Enable interrupts on this processor.
     sti();
 
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    acquire(&p->lock);
+    for(p = proc; p < &proc[NPROC]; p++) {
       if(p->state == RUNNABLE) {
-        pooltickets += p->numtickets;
+        totalTickets += p->numtickets;
       }
     }
-    release(&ptable.lock);
 
-    // lab1-2
+    release(&p->lock);
+
     // grab the winning ticket in the range
-    winner = procrand(pooltickets);
+    winner = randProc(totalTickets);
 
     // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    acquire(&p->lock);
+    for(p = proc; p < &proc[NPROC]; p++) {
       if(p->state != RUNNABLE)
         continue;
 
       // lab1-2
       // check for our winner!
-      if(winner <= atticket || atticket == pooltickets) {
+      if(winner <= atticket || atticket == totalTickets) {
         // decrement our tickets
-        p->numtickets -= DECREMENT_TICKETS;
+        p->numtickets -= 1;
         // refresh the tickets
         if(p->numtickets == 0) {
           p->numtickets = SEED_TICKETS;
@@ -529,7 +542,7 @@ lottery(void)
 
     // lab1-2
     // reset pool tickets so that we can rebuild the list again
-    pooltickets = 0;
+    totalTickets = 0;
     atticket = 0;
   }
 }
