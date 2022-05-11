@@ -6,5 +6,7 @@ unsigned short randProc(int max)
 {
     //todo mod
     bit = ((lfsr >> 0) ^ (lfsr >> 2) ^ (lfsr >> 3) ^ (lfsr >> 5)) & 1;
-    return lfsr = (lfsr >> 1) | (bit << 15);
+    lfsr = (lfsr >> 1) | (bit << 15);
+    
+    return lfsr % max;
 }
