@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "rand.h"
 
 struct cpu cpus[NCPU];
 
@@ -141,6 +142,7 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  p->numtickets = 0;
   return p;
 }
 
@@ -164,6 +166,7 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  p->numtickets = 0;
 }
 
 // Create a user page table for a given process,
@@ -461,6 +464,73 @@ scheduler(void)
       }
       release(&p->lock);
     }
+  }
+}
+
+// Lottery and Stride Scheduling
+void
+lottery(void)
+{
+  struct proc *p;
+
+  int winner = procrand(4);
+  int pooltickets = 0;
+  int atticket = 0;
+
+  cprintf("Using lottery scheduling...\n");
+
+  for(;;){
+    // Enable interrupts on this processor.
+    sti();
+
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      if(p->state == RUNNABLE) {
+        pooltickets += p->numtickets;
+      }
+    }
+    release(&ptable.lock);
+
+    // lab1-2
+    // grab the winning ticket in the range
+    winner = procrand(pooltickets);
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+
+      // lab1-2
+      // check for our winner!
+      if(winner <= atticket || atticket == pooltickets) {
+        // decrement our tickets
+        p->numtickets -= DECREMENT_TICKETS;
+        // refresh the tickets
+        if(p->numtickets == 0) {
+          p->numtickets = SEED_TICKETS;
+        }
+        cprintf("Process: %d, %s is allowed to run!\n", p->pid, p->name);
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+        swtch(&cpu->scheduler, proc->context);
+        switchkvm();
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        proc = 0;
+      }
+    }
+    release(&ptable.lock);
+
+    // lab1-2
+    // reset pool tickets so that we can rebuild the list again
+    pooltickets = 0;
+    atticket = 0;
   }
 }
 
