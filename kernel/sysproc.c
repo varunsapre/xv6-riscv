@@ -95,3 +95,22 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64 
+sys_sched_statistics(void)
+{
+  get_sched_stats();
+  return 0;
+}
+
+uint 
+sys_sched_tickets() 
+{
+  int tickets;
+  argint(0, &tickets);
+  int ret = run_sched_tickets(tickets);
+  if (ret < 0) {
+    printf("MAX tickets already assigned");
+  }
+  return 0;
+}
